@@ -1,8 +1,8 @@
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Simulator {
   enum Protocol {
@@ -13,10 +13,22 @@ public class Simulator {
     System.out.println("========== Cache Coherence Simulator ==========");
     validateArgLength(args.length);
     Protocol protocol = parseProtocol(args[0]);
-    List<BufferedReader> readers = parseInputFile(args[1]);
+    List<Scanner> readers = parseInputFile(args[1]);
     int cacheSize = parseCacheSize(args[2]);
     int associativity = parseAssociativity(args[3]);
     int blockSize = parseBlockSize(args[4]);
+
+    List<Processor> processors = readers.stream()
+        .map(reader -> new Processor(protocol, reader, cacheSize, associativity, blockSize))
+        .collect(Collectors.toList());
+    Bus bus = new Bus(processors.stream().map(p -> p.cache).collect(Collectors.toList()));
+
+    while (!processors.stream().map(p -> p.state == Processor.State.DONE).reduce(Boolean::logicalAnd).get()) {
+      processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tick());
+      bus.tick();
+    }
+
+    printStats(processors);
   }
 
   public static void validateArgLength(int length) {
@@ -40,7 +52,7 @@ public class Simulator {
     return protocol;
   }
 
-  public static List<BufferedReader> parseInputFile(String inputFile) {
+  public static List<Scanner> parseInputFile(String inputFile) {
     File directory = new File("./data/" + inputFile);
     if (!directory.isDirectory()) {
       exitWithUsage(directory + " is not a vallid directory");
@@ -50,11 +62,11 @@ public class Simulator {
     File[] files = directory.listFiles();
     Arrays.sort(files);
 
-    List<BufferedReader> readers = new ArrayList<>();
+    List<Scanner> readers = new ArrayList<>();
     for (File file : files) {
       System.out.println("..." + file.getName() + " found");
       try {
-        BufferedReader reader = new BufferedReader(new FileReader(file));
+        Scanner reader = new Scanner(file);
         readers.add(reader);
       } catch (FileNotFoundException e) {
         exitWithUsage(file.getName() + " found but could not be read");
@@ -116,5 +128,13 @@ public class Simulator {
     String associativity = "\tassociativity: associativity of the cache";
     String blockSize = "\tblock_size: block size in bytes";
     System.out.println(String.join("\n", usage, protocol, inputFile, cacheSize, associativity, blockSize));
+  }
+
+  public static void printStats(List<Processor> processors) {
+    String overall = "Overall Excution Cycle: " + processors.stream().map(p -> p.currentCycle).reduce(Long::max).get();
+    String computes = "Compute Cycles: " + IntStream.range(0, processors.size())
+        .mapToObj(i -> String.format("Core %d: %d", i, processors.get(i).computeCycles))
+        .collect(Collectors.joining(", "));
+    System.out.println(String.join("\n", overall, computes));
   }
 }
