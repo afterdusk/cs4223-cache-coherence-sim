@@ -33,7 +33,7 @@ public class Simulator {
       processors.add(processor);
     }
 
-    while (!processors.stream().map(p -> p.state == Processor.State.DONE).reduce(Boolean::logicalAnd).get()) {
+    while (!processors.stream().allMatch(p -> p.state == Processor.State.DONE)) {
       processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tick());
       // bus.tick();
     }
