@@ -18,14 +18,24 @@ public class Simulator {
     int associativity = parseAssociativity(args[3]);
     int blockSize = parseBlockSize(args[4]);
 
-    List<Processor> processors = readers.stream()
-        .map(reader -> new Processor(protocol, reader, cacheSize, associativity, blockSize))
-        .collect(Collectors.toList());
-    Bus bus = new Bus(processors.stream().map(p -> p.cache).collect(Collectors.toList()));
+    List<Processor> processors = new ArrayList<>(readers.size());
+    Bus bus = new Bus();
+    for (Scanner reader : readers) {
+      Cache cache;
+      switch (protocol) {
+        case MESI:
+          cache = new MesiCache(bus, cacheSize, associativity, blockSize);
+          break;
+        default:
+          throw new RuntimeException("Cache not implemented for protocol");
+      }
+      Processor processor = new Processor(reader, cache);
+      processors.add(processor);
+    }
 
     while (!processors.stream().map(p -> p.state == Processor.State.DONE).reduce(Boolean::logicalAnd).get()) {
       processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tick());
-      bus.tick();
+      // bus.tick();
     }
 
     printStats(processors);
@@ -55,7 +65,7 @@ public class Simulator {
   public static List<Scanner> parseInputFile(String inputFile) {
     File directory = new File("./data/" + inputFile);
     if (!directory.isDirectory()) {
-      exitWithUsage(directory + " is not a vallid directory");
+      exitWithUsage(directory + " is not a valid directory");
     }
     System.out.println("...Reading benchmark files from: " + directory.getAbsolutePath());
 
@@ -131,7 +141,7 @@ public class Simulator {
   }
 
   public static void printStats(List<Processor> processors) {
-    String overall = "Overall Excution Cycle: " + processors.stream().map(p -> p.currentCycle).reduce(Long::max).get();
+    String overall = "Overall Execution Cycle: " + processors.stream().map(p -> p.currentCycle).reduce(Long::max).get();
     String computes = "Compute Cycles: " + IntStream.range(0, processors.size())
         .mapToObj(i -> String.format("Core %d: %d", i, processors.get(i).computeCycles))
         .collect(Collectors.joining(", "));

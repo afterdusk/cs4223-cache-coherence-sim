@@ -16,9 +16,10 @@ public class Processor {
 
   int computeRemaining;
 
-  public Processor(Simulator.Protocol protocol, Scanner sc, int cacheSize, int associativity, int blockSize) {
+  public Processor(Scanner sc, Cache cache) {
     this.sc = sc;
-    cache = new Cache(this, protocol, cacheSize, associativity, blockSize);
+    this.cache = cache;
+    cache.registerProcessor(this);
   }
 
   public void tick() {
@@ -27,7 +28,6 @@ public class Processor {
         return;
       case WAITCACHE:
       case COMPUTE:
-        cache.issue();
         break;
       case READY:
         if (!sc.hasNext()) {
@@ -36,22 +36,23 @@ public class Processor {
         }
 
         Instruction inst = getNextInstruction();
-        switch (inst.type) {
+        switch (inst.getType()) {
           case LOAD:
             loads++;
             state = State.WAITCACHE;
-            // Hand off to cache
+            cache.read(inst.getAddress());
             break;
           case STORE:
             stores++;
             state = State.WAITCACHE;
-            // Hand off to cache
+            cache.write(inst.getAddress());
             break;
           case OTHER:
             state = State.COMPUTE;
-            computeRemaining = inst.address;
+            computeRemaining = inst.getCycleDuration();
         }
     }
+    cache.tick();
     currentCycle++;
   }
 
@@ -98,8 +99,8 @@ public class Processor {
         throw new InputMismatchException("Unknown instruction code :" + instType);
     }
 
-    int address = Integer.parseInt(sc.next().substring(2), 16);
-    return new Instruction(type, address);
+    int value = Integer.parseInt(sc.next().substring(2), 16);
+    return new Instruction(type, value);
   }
 
 }
