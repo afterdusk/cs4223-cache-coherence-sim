@@ -40,6 +40,10 @@ public abstract class Cache {
 
   abstract BusTransaction snoop(BusTransaction transaction);
 
+  protected CacheSet getSet(int address) {
+    return sets.get(getSetIndex(address));
+  }
+
   protected int getSetIndex(int address) {
     int blockNumber = address / offset;
     return blockNumber % numSets;
