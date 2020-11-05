@@ -6,14 +6,12 @@ public abstract class Cache {
   protected Processor processor;
   protected Bus bus;
   protected int blockSize;
-  protected int offset;
   protected int numSets;
   protected List<CacheSet> sets;
 
   public Cache(Bus bus, int cacheSize, int associativity, int blockSize) {
     this.bus = bus;
     this.blockSize = blockSize;
-    this.offset = blockSize / WORD_SIZE;
     this.numSets = cacheSize / (blockSize * associativity);
     this.sets = new ArrayList<>();
     for (int i = 0; i < this.numSets; i++) {
@@ -45,12 +43,12 @@ public abstract class Cache {
   }
 
   protected int getSetIndex(int address) {
-    int blockNumber = address / offset;
+    int blockNumber = address / blockSize;
     return blockNumber % numSets;
   }
 
   protected int getTag(int address) {
-    int blockNumber = address / offset;
+    int blockNumber = address / blockSize;
     return blockNumber / numSets;
   }
 }
