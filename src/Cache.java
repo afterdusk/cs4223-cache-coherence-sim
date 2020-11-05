@@ -1,7 +1,7 @@
 import java.util.*;
 
 public abstract class Cache {
-  protected static final int WORD_SIZE = 32;
+  protected static final int WORD_SIZE = 4;
 
   protected Processor processor;
   protected Bus bus;
