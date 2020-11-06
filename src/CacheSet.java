@@ -24,18 +24,25 @@ public class CacheSet {
     return blocks.get(tag);
   }
 
-  public Integer add(int tag, State state) {
+  public void add(int tag, State state) {
     if (contains(tag)) {
       throw new RuntimeException("CacheSet already contains tag, unable to add");
     }
     blocks.put(tag, state);
-    // LRU policy
-    Integer oldest = null;
-    if (blocks.size() > numBlocks) {
-      oldest = blocks.keySet().iterator().next();
-      blocks.remove(oldest);
+  }
+
+  public int getEvictionTarget() {
+    if (!isFull()) {
+      throw new RuntimeException("Requesting eviction target when cache set not full");
     }
-    return oldest;
+    return blocks.keySet().iterator().next();
+  }
+
+  public void evict() {
+    if (!isFull()) {
+      throw new RuntimeException("Evicting when cache set not full");
+    }
+    blocks.remove(getEvictionTarget());
   }
 
   public void use(int tag) {
@@ -55,5 +62,9 @@ public class CacheSet {
 
   public void invalidate(int tag) {
     blocks.remove(tag);
+  }
+
+  public boolean isFull() {
+    return blocks.size() == numBlocks;
   }
 }

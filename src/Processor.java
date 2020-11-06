@@ -58,8 +58,6 @@ public class Processor {
 
   public void tock() {
     switch (state) {
-      case DONE:
-        return;
       case COMPUTE:
         computeCycles++;
         computeRemaining--;
@@ -69,8 +67,8 @@ public class Processor {
       case WAITCACHE:
         idle++;
         break;
-      case READY:
-        throw new RuntimeException("Processor in READY state when tock() called");
+      default:
+        break;
     }
   }
 

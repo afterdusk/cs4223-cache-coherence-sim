@@ -3,6 +3,8 @@ public class BusTransaction {
   private int address;
   private int size;
 
+  private boolean shared;
+
   public BusTransaction(Transition transition, int address, int size) {
     this.transition = transition;
     this.address = address;
@@ -23,5 +25,13 @@ public class BusTransaction {
 
   public int getSize() {
     return size;
+  }
+
+  public void setShared(boolean shared) {
+    this.shared = shared;
+  }
+
+  public boolean getShared() {
+    return shared;
   }
 }

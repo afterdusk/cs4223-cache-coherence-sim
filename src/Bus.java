@@ -3,6 +3,7 @@ import java.util.*;
 public class Bus {
   private static final int WORD_LATENCY_CACHE = 2;
   private static final int BLOCK_LATENCY_MEM = 100;
+  private static final int WORD_SIZE = 4;
 
   enum BusState {
     READY, BUSY

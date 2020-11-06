@@ -26,7 +26,9 @@ public abstract class Cache {
 
   abstract void tick();
 
-  abstract boolean contains(int address);
+  public boolean contains(int address) {
+    return getSet(address).contains(getTag(address));
+  }
 
   abstract void read(int address);
 
@@ -36,7 +38,7 @@ public abstract class Cache {
 
   abstract void exitBus(BusTransaction result);
 
-  abstract BusTransaction snoop(BusTransaction transaction);
+  abstract Optional<BusTransaction> snoop(BusTransaction transaction);
 
   protected CacheSet getSet(int address) {
     return sets.get(getSetIndex(address));

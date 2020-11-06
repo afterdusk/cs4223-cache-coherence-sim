@@ -36,6 +36,7 @@ public class Simulator {
     while (!processors.stream().allMatch(p -> p.state == Processor.State.DONE)) {
       processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tick());
       // bus.tick();
+      processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tock());
     }
 
     printStats(processors);
