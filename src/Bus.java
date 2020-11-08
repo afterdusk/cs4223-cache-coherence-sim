@@ -53,6 +53,8 @@ public class Bus {
             responder.unhog();
           }
           responder = null;
+        }
+        if (busyCycles <= 0 && exitCycles <= 0) {
           busState = BusState.READY;
         }
         break;
