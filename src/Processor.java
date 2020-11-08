@@ -76,7 +76,7 @@ public class Processor {
     if (state == State.WAITCACHE) { // For idempotency
       state = State.READY;
     } else {
-      tock();
+      throw new RuntimeException("unstall() was called when processor was not in WAITCACHE state");
     }
   }
 

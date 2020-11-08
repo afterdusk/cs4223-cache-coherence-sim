@@ -8,6 +8,7 @@ public abstract class Cache {
   protected int blockSize;
   protected int numSets;
   protected List<CacheSet> sets;
+  boolean hoggedByBus;
 
   public Cache(Bus bus, int cacheSize, int associativity, int blockSize) {
     this.bus = bus;
@@ -18,17 +19,26 @@ public abstract class Cache {
       this.sets.add(new CacheSet(associativity));
     }
     bus.registerCache(this);
+    this.hoggedByBus = false;
   }
 
   public void registerProcessor(Processor processor) {
     this.processor = processor;
   }
 
-  abstract void tick();
-
   public boolean contains(int address) {
     return getSet(address).contains(getTag(address));
   }
+
+  public void hog() {
+    hoggedByBus = true;
+  }
+
+  public void unhog() {
+    hoggedByBus = false;
+  }
+
+  abstract void tick();
 
   abstract void read(int address);
 
@@ -52,5 +62,10 @@ public abstract class Cache {
   protected int getTag(int address) {
     int blockNumber = address / blockSize;
     return blockNumber / numSets;
+  }
+
+  protected int getAddress(int tag, int setIndex) {
+    int blockNumber = (tag * numSets) + setIndex;
+    return blockNumber * blockSize;
   }
 }

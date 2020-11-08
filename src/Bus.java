@@ -12,10 +12,18 @@ public class Bus {
   private List<Cache> caches;
   private BusState busState;
   private int busyCycles;
-  private Cache pendingAccess;
+  private int exitCycles;
+
+  // State variables
+  private Cache requester;
+  private Cache responder;
+  private BusTransaction result;
 
   public Bus() {
     caches = new ArrayList<>();
+    busState = BusState.READY;
+    busyCycles = 0;
+    exitCycles = 0;
   }
 
   public void registerCache(Cache cache) {
@@ -23,8 +31,8 @@ public class Bus {
   }
 
   public void reserve(Cache cache) {
-    if (pendingAccess == null) {
-      pendingAccess = cache;
+    if (requester == null) {
+      requester = cache;
     }
   }
 
@@ -32,21 +40,38 @@ public class Bus {
     switch (busState) {
       case BUSY:
         busyCycles--;
+        exitCycles--;
+        if (exitCycles == 0) {
+          requester.exitBus(result);
+          requester = null;
+          result = null;
+        }
         if (busyCycles == 0) {
+          if (responder != null) {
+            responder.unhog();
+          }
+          responder = null;
           busState = BusState.READY;
         }
         break;
       case READY:
-        if (pendingAccess == null) {
+        if (requester == null) {
           break;
         }
-        BusTransaction transaction = pendingAccess.accessBus();
+        BusTransaction transaction = requester.accessBus();
         switch (transaction.getTransition()) {
           case BUS_RD:
             busRd(transaction);
             break;
           case BUS_RD_X:
+            busRdX(transaction);
+            break;
           case FLUSH:
+            flush(transaction);
+            break;
+          case BUS_UPD:
+            // TODO
+            break;
           case FLUSH_OPT:
             break;
         }
@@ -54,20 +79,41 @@ public class Bus {
   }
 
   private void busRd(BusTransaction transaction) {
-    boolean inCaches = false;
+    // Propagate to caches
+    boolean foundResponder = false;
     for (Cache cache : caches) {
-      if (cache.contains(transaction.getAddress())) {
-        inCaches = true;
-        break;
+      Optional<BusTransaction> response = cache.snoop(transaction);
+      // Fetch from first cache that responds with FlushOpt
+      if (!foundResponder && response.isPresent()) {
+        foundResponder = true;
+        responder = cache;
+        responder.hog();
+        result = transaction;
+        result.setShared(true);
+        exitCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
+        busyCycles = response.get().getTransition() == Transition.FLUSH_OPT ? exitCycles : BLOCK_LATENCY_MEM;
+        busState = BusState.BUSY;
       }
     }
-    if (inCaches) {
-      // Fetch from cache
-      busyCycles = WORD_LATENCY_CACHE * transaction.getSize();
-    } else {
-      // Fetch from memory
-      busyCycles = BLOCK_LATENCY_MEM;
+
+    // Fetch from memory if no cache responded
+    if (!foundResponder) {
+      result = transaction;
+      result.setShared(false);
+      exitCycles = BLOCK_LATENCY_MEM;
+      busyCycles = exitCycles;
+      busState = BusState.BUSY;
     }
+  }
+
+  private void busRdX(BusTransaction transaction) {
+    busRd(transaction);
+  }
+
+  private void flush(BusTransaction transaction) {
+    result = transaction;
+    exitCycles = BLOCK_LATENCY_MEM;
+    busyCycles = exitCycles;
     busState = BusState.BUSY;
   }
 }
