@@ -15,6 +15,7 @@ public class Bus {
   private int exitCycles;
 
   // State variables
+  private List<Cache> requesterQueue;
   private Cache requester;
   private Cache responder;
   private BusTransaction result;
@@ -24,6 +25,7 @@ public class Bus {
     busState = BusState.READY;
     busyCycles = 0;
     exitCycles = 0;
+    requesterQueue = new ArrayList<>();
   }
 
   public void registerCache(Cache cache) {
@@ -31,8 +33,8 @@ public class Bus {
   }
 
   public void reserve(Cache cache) {
-    if (requester == null) {
-      requester = cache;
+    if (!requesterQueue.contains(cache)) {
+      requesterQueue.add(cache);
     }
   }
 
@@ -55,9 +57,10 @@ public class Bus {
         }
         break;
       case READY:
-        if (requester == null) {
-          break;
+        if (requesterQueue.isEmpty()) {
+          return;
         }
+        requester = requesterQueue.remove(0);
         BusTransaction transaction = requester.accessBus();
         switch (transaction.getTransition()) {
           case BUS_RD:
