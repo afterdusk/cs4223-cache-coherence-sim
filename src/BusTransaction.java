@@ -11,10 +11,6 @@ public class BusTransaction {
     this.size = size;
   }
 
-  public BusTransaction(Transition transition, int address) {
-    this(transition, address, 0);
-  }
-
   public Transition getTransition() {
     return transition;
   }

@@ -26,6 +26,9 @@ public class Simulator {
         case MESI:
           cache = new MesiCache(bus, cacheSize, associativity, blockSize);
           break;
+        case DRAGON:
+          cache = new DragonCache(bus, cacheSize, associativity, blockSize);
+          break;
         default:
           throw new RuntimeException("Cache not implemented for protocol");
       }

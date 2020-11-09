@@ -31,7 +31,7 @@ public class CacheSet {
     blocks.put(tag, state);
   }
 
-  public int getEvictionTarget() {
+  public int getEvictionTargetTag() {
     if (!isFull()) {
       throw new RuntimeException("Requesting eviction target when cache set not full");
     }
@@ -42,7 +42,7 @@ public class CacheSet {
     if (!isFull()) {
       throw new RuntimeException("Evicting when cache set not full");
     }
-    blocks.remove(getEvictionTarget());
+    blocks.remove(getEvictionTargetTag());
   }
 
   public void use(int tag) {

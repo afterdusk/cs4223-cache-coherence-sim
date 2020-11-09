@@ -67,9 +67,9 @@ public class MesiCache extends Cache {
           break;
         }
         // Conflict miss
-        int evictionTarget = set.getEvictionTarget();
-        State evictionTargetState = set.getState(evictionTarget);
-        int evictionTargetAddress = getAddress(evictionTarget, getSetIndex(pendingAddress));
+        int evictionTargetTag = set.getEvictionTargetTag();
+        State evictionTargetState = set.getState(evictionTargetTag);
+        int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
         if (evictionTargetState == State.MESI_MODIFIED) {
@@ -91,9 +91,9 @@ public class MesiCache extends Cache {
           break;
         }
         // Conflict miss
-        int evictionTarget = set.getEvictionTarget();
-        State evictionTargetState = set.getState(evictionTarget);
-        int evictionTargetAddress = getAddress(evictionTarget, getSetIndex(pendingAddress));
+        int evictionTargetTag = set.getEvictionTargetTag();
+        State evictionTargetState = set.getState(evictionTargetTag);
+        int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
         if (evictionTargetState == State.MESI_MODIFIED) {

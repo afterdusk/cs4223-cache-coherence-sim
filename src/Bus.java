@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Bus {
   private static final int WORD_LATENCY_CACHE = 2;
@@ -17,7 +18,7 @@ public class Bus {
   // State variables
   private List<Cache> requesterQueue;
   private Cache requester;
-  private Cache responder;
+  private Set<Cache> hogged = Set.of();
   private BusTransaction result;
 
   public Bus() {
@@ -38,6 +39,13 @@ public class Bus {
     }
   }
 
+  public void reserveToFront(Cache cache) {
+    if (requesterQueue.contains(cache) || !(cache instanceof DragonCache))
+      throw new RuntimeException("Reserve to front should only be called by Dragon after BusRd for PrWrMiss");
+
+    requesterQueue.add(0, cache);
+  }
+
   public void tick() {
     switch (busState) {
       case BUSY:
@@ -49,11 +57,11 @@ public class Bus {
           result = null;
         }
         if (busyCycles == 0) {
-          if (responder != null) {
-            responder.unhog();
-          }
-          responder = null;
+          hogged.stream().forEach(c -> c.unhog());
+          hogged = Set.of();
         }
+        busyCycles = Integer.max(busyCycles, -1);
+        exitCycles = Integer.max(exitCycles, -1);
         if (busyCycles <= 0 && exitCycles <= 0) {
           busState = BusState.READY;
         }
@@ -75,40 +83,45 @@ public class Bus {
             flush(transaction);
             break;
           case BUS_UPD:
-            // TODO
+            busUpd(transaction);
             break;
           case FLUSH_OPT:
-            break;
+            throw new RuntimeException("Some cache directly requested FlushOpt from the bus");
         }
     }
   }
 
   private void busRd(BusTransaction transaction) {
+    result = transaction;
+
+    boolean shared = caches.stream().filter(c -> c != requester).anyMatch(c -> c.contains(transaction.getAddress()));
+    result.setShared(shared);
+
     // Propagate to caches
     boolean foundResponder = false;
     for (Cache cache : caches) {
+      if (cache == requester)
+        continue;
+
       Optional<BusTransaction> response = cache.snoop(transaction);
       // Fetch from first cache that responds with FlushOpt
       if (!foundResponder && response.isPresent()) {
         foundResponder = true;
-        responder = cache;
-        responder.hog();
-        result = transaction;
-        result.setShared(true);
+        hogged = Set.of(cache);
+        cache.hog();
         exitCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
         busyCycles = response.get().getTransition() == Transition.FLUSH_OPT ? exitCycles : BLOCK_LATENCY_MEM;
-        busState = BusState.BUSY;
+        exitCycles--;
+        busyCycles--;
       }
     }
 
     // Fetch from memory if no cache responded
     if (!foundResponder) {
-      result = transaction;
-      result.setShared(false);
-      exitCycles = BLOCK_LATENCY_MEM;
-      busyCycles = exitCycles;
-      busState = BusState.BUSY;
+      exitCycles = BLOCK_LATENCY_MEM - 1;
     }
+
+    busState = BusState.BUSY;
   }
 
   private void busRdX(BusTransaction transaction) {
@@ -117,8 +130,26 @@ public class Bus {
 
   private void flush(BusTransaction transaction) {
     result = transaction;
-    exitCycles = BLOCK_LATENCY_MEM;
-    busyCycles = exitCycles;
+    exitCycles = BLOCK_LATENCY_MEM - 1;
     busState = BusState.BUSY;
+  }
+
+  private void busUpd(BusTransaction transaction) {
+    result = transaction;
+
+    Set<Cache> containsAddr = caches.stream().filter(c -> c != requester && c.contains(transaction.getAddress()))
+        .collect(Collectors.toSet());
+    boolean shared = !containsAddr.isEmpty();
+    result.setShared(shared);
+
+    if (shared) {
+      hogged = containsAddr;
+      hogged.stream().forEach(c -> c.hog());
+      exitCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE) - 1;
+      busyCycles = exitCycles;
+      busState = BusState.BUSY;
+    } else {
+      requester.exitBus(result);
+    }
   }
 }
