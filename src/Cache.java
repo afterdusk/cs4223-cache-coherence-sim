@@ -1,6 +1,10 @@
 import java.util.*;
 
 public abstract class Cache {
+  enum CacheState {
+    READY, PENDING_READ, PENDING_WRITE, READING_PENDING_FLUSH, READING, WRITING_PENDING_FLUSH, WRITING
+  }
+
   protected static final int WORD_SIZE = 4;
 
   protected Processor processor;
@@ -8,7 +12,18 @@ public abstract class Cache {
   protected int blockSize;
   protected int numSets;
   protected List<CacheSet> sets;
-  boolean hoggedByBus;
+  protected boolean hoggedByBus;
+
+  // State variables
+  protected CacheState cacheState;
+  protected int pendingAddress;
+
+  // Statistics
+  protected long cacheNumTotalAccesses = 0;
+  protected long cacheNumHits = 0;
+  protected long cacheNumMisses = 0;
+  protected long cacheNumPrivateAccesses = 0;
+  protected long cacheNumSharedAccesses = 0;
 
   public Cache(Bus bus, int cacheSize, int associativity, int blockSize) {
     this.bus = bus;
@@ -20,6 +35,7 @@ public abstract class Cache {
     }
     bus.registerCache(this);
     this.hoggedByBus = false;
+    this.cacheState = CacheState.READY;
   }
 
   public void registerProcessor(Processor processor) {
@@ -38,6 +54,22 @@ public abstract class Cache {
     hoggedByBus = false;
   }
 
+  public Map<String, Number> getCacheStatistics() {
+    assert cacheNumHits + cacheNumMisses == cacheNumTotalAccesses;
+    assert cacheNumPrivateAccesses + cacheNumSharedAccesses == cacheNumHits;
+
+    Map<String, Number> statistics = new LinkedHashMap<>();
+    statistics.put("Cache Accesses", cacheNumTotalAccesses);
+    statistics.put("Cache Hits", cacheNumHits);
+    statistics.put("Cache Misses", cacheNumMisses);
+    statistics.put("Cache Miss Rate (%)", (float) cacheNumMisses / cacheNumTotalAccesses * 100);
+    statistics.put("Private Data Accesses", cacheNumPrivateAccesses);
+    statistics.put("Shared Data Accesses", cacheNumSharedAccesses);
+    statistics.put("Private Data Accesses (%)", (float) cacheNumPrivateAccesses / cacheNumHits * 100);
+    statistics.put("Shared Data Accesses (%)", (float) cacheNumSharedAccesses / cacheNumHits * 100);
+    return statistics;
+  }
+
   abstract void tick();
 
   abstract void read(int address);
@@ -49,6 +81,8 @@ public abstract class Cache {
   abstract void exitBus(BusTransaction result);
 
   abstract Optional<BusTransaction> snoop(BusTransaction transaction);
+
+  abstract void updateCacheStatistics(Optional<State> state);
 
   protected CacheSet getSet(int address) {
     return sets.get(getSetIndex(address));

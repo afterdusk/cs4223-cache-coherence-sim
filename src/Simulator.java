@@ -1,13 +1,14 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class Simulator {
   enum Protocol {
     DRAGON, MESI
   }
+
+  // Statistics
+  public static long simulatorCycle = 0;
 
   public static void main(String[] args) throws Exception {
     System.out.println("========== Cache Coherence Simulator ==========");
@@ -19,6 +20,7 @@ public class Simulator {
     int blockSize = parseBlockSize(args[4]);
 
     List<Processor> processors = new ArrayList<>(readers.size());
+    List<Cache> caches = new ArrayList<>(readers.size());
     Bus bus = new Bus();
     for (Scanner reader : readers) {
       Cache cache;
@@ -32,17 +34,21 @@ public class Simulator {
         default:
           throw new RuntimeException("Cache not implemented for protocol");
       }
-      Processor processor = new Processor(reader, cache);
-      processors.add(processor);
+      caches.add(cache);
+      processors.add(new Processor(reader, cache));
     }
 
-    while (!processors.stream().allMatch(p -> p.state == Processor.State.DONE)) {
-      processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tick());
+    System.out.println("...Simulation starting");
+    while (!processors.stream().allMatch(p -> p.state == Processor.ProcessorState.DONE)) {
+      processors.stream().filter(p -> p.state != Processor.ProcessorState.DONE).forEach(p -> p.tick());
       bus.tick();
-      processors.stream().filter(p -> p.state != Processor.State.DONE).forEach(p -> p.tock());
+      bus.tock();
+      processors.stream().filter(p -> p.state != Processor.ProcessorState.DONE).forEach(p -> p.tock());
+      simulatorCycle++;
     }
+    System.out.printf("...Simulation completed!\n\n");
 
-    printStats(processors);
+    printStatistics(bus, processors, caches);
   }
 
   public static void validateArgLength(int length) {
@@ -144,11 +150,25 @@ public class Simulator {
     System.out.println(String.join("\n", usage, protocol, inputFile, cacheSize, associativity, blockSize));
   }
 
-  public static void printStats(List<Processor> processors) {
-    String overall = "Overall Execution Cycle: " + processors.stream().map(p -> p.currentCycle).reduce(Long::max).get();
-    String computes = "Compute Cycles: " + IntStream.range(0, processors.size())
-        .mapToObj(i -> String.format("Core %d: %d", i, processors.get(i).computeCycles))
-        .collect(Collectors.joining(", "));
-    System.out.println(String.join("\n", overall, computes));
+  public static void printStatistics(Bus bus, List<Processor> processors, List<Cache> caches) {
+    System.out.println("============ Simulation Statistics ============");
+    System.out.println("Overall Execution Cycle: " + simulatorCycle);
+    System.out.println("------------------- Bus --------------------");
+    printStatisticsMap(bus.getBusStatistics());
+    for (int i = 0; i < processors.size(); i++) {
+      System.out.printf("------------------ Core %d ------------------\n", i + 1);
+      printStatisticsMap(processors.get(i).getProcessorStatistics());
+      printStatisticsMap(caches.get(i).getCacheStatistics());
+    }
+  }
+
+  public static void printStatisticsMap(Map<String, Number> map) {
+    map.forEach((k, v) -> {
+      if (v instanceof Float) {
+        System.out.printf("%-28s %15.2f\n", k + ":", v);
+      } else {
+        System.out.printf("%-28s %15d\n", k + ":", v);
+      }
+    });
   }
 }

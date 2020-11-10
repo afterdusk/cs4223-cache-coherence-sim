@@ -1,23 +1,14 @@
 import java.util.*;
 
 public class DragonCache extends Cache {
-  enum CacheState {
-    READY, PENDING_READ, PENDING_WRITE, READING_PENDING_FLUSH, READING, WRITING_PENDING_FLUSH, WRITING
-  }
-
-  public CacheState state;
-
-  int pendingAddress;
-
   public DragonCache(Bus bus, int cacheSize, int associativity, int blockSize) {
     super(bus, cacheSize, associativity, blockSize);
-    state = CacheState.READY;
   }
 
   public void tick() {
     if (hoggedByBus)
       return;
-    switch (state) {
+    switch (cacheState) {
       case PENDING_READ:
         prRd();
         break;
@@ -30,44 +21,48 @@ public class DragonCache extends Cache {
   }
 
   public void read(int address) {
-    state = CacheState.PENDING_READ;
+    cacheState = CacheState.PENDING_READ;
     pendingAddress = address;
   }
 
   public void write(int address) {
-    state = CacheState.PENDING_WRITE;
+    cacheState = CacheState.PENDING_WRITE;
     pendingAddress = address;
   }
 
   private void prRd() {
-    if (state != CacheState.PENDING_READ)
+    if (cacheState != CacheState.PENDING_READ)
       return;
     CacheSet set = getSet(pendingAddress);
     int tag = getTag(pendingAddress);
     if (set.contains(tag)) {
+      updateCacheStatistics(Optional.of(set.getState(tag)));
       set.use(tag);
       processor.unstall();
-      state = CacheState.READY;
+      cacheState = CacheState.READY;
       return;
     }
+    updateCacheStatistics(Optional.empty());
     bus.reserve(this);
   }
 
   private void prWr() {
-    if (state != CacheState.PENDING_WRITE)
+    if (cacheState != CacheState.PENDING_WRITE)
       return;
     CacheSet set = getSet(pendingAddress);
     int tag = getTag(pendingAddress);
     if (set.contains(tag)) {
       State blockState = set.getState(tag);
+      updateCacheStatistics(Optional.of(blockState));
       if (blockState == State.DRAGON_EXCLUSIVE || blockState == State.DRAGON_MODIFIED) {
         set.update(tag, State.DRAGON_MODIFIED);
         set.use(tag);
         processor.unstall();
-        state = CacheState.READY;
+        cacheState = CacheState.READY;
         return;
       }
     }
+    updateCacheStatistics(Optional.empty());
     bus.reserve(this);
   }
 
@@ -76,8 +71,8 @@ public class DragonCache extends Cache {
     int tag = getTag(pendingAddress);
 
     // Read miss
-    if (state == CacheState.PENDING_READ) {
-      state = CacheState.READING;
+    if (cacheState == CacheState.PENDING_READ) {
+      cacheState = CacheState.READING;
       // Capacity available
       if (!set.isFull())
         return new BusTransaction(Transition.BUS_RD, pendingAddress, blockSize);
@@ -88,15 +83,15 @@ public class DragonCache extends Cache {
       int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
       // Need to flush evictee
       if (evictionTargetState == State.DRAGON_MODIFIED || evictionTargetState == State.DRAGON_SHARED_MODIFIED) {
-        state = CacheState.READING_PENDING_FLUSH;
+        cacheState = CacheState.READING_PENDING_FLUSH;
         return new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
       }
       set.evict();
       return new BusTransaction(Transition.BUS_RD, pendingAddress, blockSize);
     }
 
-    if (state == CacheState.PENDING_WRITE) {
-      state = CacheState.WRITING;
+    if (cacheState == CacheState.PENDING_WRITE) {
+      cacheState = CacheState.WRITING;
       // Write hit
       if (set.contains(tag))
         return new BusTransaction(Transition.BUS_UPD, pendingAddress, blockSize);
@@ -111,7 +106,7 @@ public class DragonCache extends Cache {
       int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
       // Need to flush evictee
       if (evictionTargetState == State.DRAGON_MODIFIED || evictionTargetState == State.DRAGON_SHARED_MODIFIED) {
-        state = CacheState.WRITING_PENDING_FLUSH;
+        cacheState = CacheState.WRITING_PENDING_FLUSH;
         return new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
       }
       set.evict();
@@ -119,7 +114,7 @@ public class DragonCache extends Cache {
     }
 
     throw new RuntimeException(
-        "Accessing bus when not in a Pending state. State is: " + state + " in processor: " + processor);
+        "Accessing bus when not in a Pending state. State is: " + cacheState + " in processor: " + processor);
   }
 
   public void exitBus(BusTransaction result) {
@@ -131,11 +126,11 @@ public class DragonCache extends Cache {
       // Read/Write miss
       case BUS_RD:
         State newBlockState;
-        switch (state) {
+        switch (cacheState) {
           case READING:
             newBlockState = shared ? State.DRAGON_SHARED_CLEAN : State.DRAGON_EXCLUSIVE;
             set.add(tag, newBlockState);
-            state = CacheState.READY;
+            cacheState = CacheState.READY;
             processor.unstall();
             break;
           case WRITING:
@@ -145,9 +140,9 @@ public class DragonCache extends Cache {
             // Do the BusUpd next cycle
             if (newBlockState == State.DRAGON_SHARED_MODIFIED) {
               bus.reserveToFront(this);
-              state = CacheState.PENDING_WRITE;
+              cacheState = CacheState.PENDING_WRITE;
             } else {
-              state = CacheState.READY;
+              cacheState = CacheState.READY;
               processor.unstall();
             }
             break;
@@ -159,17 +154,17 @@ public class DragonCache extends Cache {
         // Must be write hit, already in cache
         set.update(tag, shared ? State.DRAGON_SHARED_MODIFIED : State.DRAGON_MODIFIED);
         set.use(tag);
-        state = CacheState.READY;
+        cacheState = CacheState.READY;
         processor.unstall();
         break;
       case FLUSH:
         set.invalidate(tag);
-        switch (state) {
+        switch (cacheState) {
           case READING_PENDING_FLUSH:
-            state = CacheState.PENDING_READ;
+            cacheState = CacheState.PENDING_READ;
             break;
           case WRITING_PENDING_FLUSH:
-            state = CacheState.PENDING_WRITE;
+            cacheState = CacheState.PENDING_WRITE;
             break;
           default:
             throw new RuntimeException("Did a Flush when state not pending flush");
@@ -215,6 +210,29 @@ public class DragonCache extends Cache {
         return Optional.empty();
       default:
         throw new RuntimeException("Snooped invalid Dragon transaction type: " + transaction.getTransition());
+    }
+
+  }
+
+  @Override
+  void updateCacheStatistics(Optional<State> state) {
+    cacheNumTotalAccesses++;
+    if (state.isEmpty()) {
+      cacheNumMisses++;
+      return;
+    }
+    cacheNumHits++;
+    switch (state.get()) {
+      case DRAGON_MODIFIED:
+      case DRAGON_EXCLUSIVE:
+        cacheNumPrivateAccesses++;
+        break;
+      case DRAGON_SHARED_MODIFIED:
+      case DRAGON_SHARED_CLEAN:
+        cacheNumSharedAccesses++;
+        break;
+      default:
+        break;
     }
 
   };

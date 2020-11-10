@@ -1,25 +1,29 @@
 import java.util.*;
 
 public class Processor {
-  enum State {
+  enum ProcessorState {
     READY, WAITCACHE, COMPUTE, DONE
   }
 
-  Cache cache;
-  Scanner sc;
-  public State state = State.READY;
-  long currentCycle = 0;
-  long computeCycles = 0;
-  long loads = 0;
-  long stores = 0;
-  long idle = 0;
+  private Cache cache;
+  private Scanner sc;
 
-  int computeRemaining;
+  // State variables
+  public ProcessorState state;
+  private int computeRemaining;
+
+  // Statistics
+  private long processorCycle = 0;
+  private long processorComputeCycles = 0;
+  private long processorLoads = 0;
+  private long processorStores = 0;
+  private long processorIdleCycles = 0;
 
   public Processor(Scanner sc, Cache cache) {
     this.sc = sc;
     this.cache = cache;
     cache.registerProcessor(this);
+    this.state = ProcessorState.READY;
   }
 
   public void tick() {
@@ -31,41 +35,41 @@ public class Processor {
         break;
       case READY:
         if (!sc.hasNext()) {
-          state = State.DONE;
+          state = ProcessorState.DONE;
           return;
         }
 
         Instruction inst = getNextInstruction();
         switch (inst.getType()) {
           case LOAD:
-            loads++;
-            state = State.WAITCACHE;
+            processorLoads++;
+            state = ProcessorState.WAITCACHE;
             cache.read(inst.getAddress());
             break;
           case STORE:
-            stores++;
-            state = State.WAITCACHE;
+            processorStores++;
+            state = ProcessorState.WAITCACHE;
             cache.write(inst.getAddress());
             break;
           case OTHER:
-            state = State.COMPUTE;
+            state = ProcessorState.COMPUTE;
             computeRemaining = inst.getCycleDuration();
         }
     }
     cache.tick();
-    currentCycle++;
+    processorCycle++;
   }
 
   public void tock() {
     switch (state) {
       case COMPUTE:
-        computeCycles++;
+        processorComputeCycles++;
         computeRemaining--;
         if (computeRemaining == 0)
-          state = State.READY;
+          state = ProcessorState.READY;
         break;
       case WAITCACHE:
-        idle++;
+        processorIdleCycles++;
         break;
       default:
         break;
@@ -73,14 +77,26 @@ public class Processor {
   }
 
   public void unstall() {
-    if (state == State.WAITCACHE) { // For idempotency
-      state = State.READY;
+    if (state == ProcessorState.WAITCACHE) { // For idempotency
+      state = ProcessorState.READY;
     } else {
       throw new RuntimeException("unstall() was called when processor was not in WAITCACHE state");
     }
   }
 
-  Instruction getNextInstruction() {
+  public Map<String, Number> getProcessorStatistics() {
+    assert processorComputeCycles + processorIdleCycles == processorCycle;
+
+    Map<String, Number> statistics = new LinkedHashMap<>();
+    statistics.put("Cycle", processorCycle);
+    statistics.put("Compute Cycles", processorComputeCycles);
+    statistics.put("Idle Cycles", processorIdleCycles);
+    statistics.put("Loads", processorLoads);
+    statistics.put("Stores", processorStores);
+    return statistics;
+  }
+
+  private Instruction getNextInstruction() {
     int instType = sc.nextInt();
     Instruction.Type type;
     switch (instType) {
