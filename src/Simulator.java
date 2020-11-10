@@ -3,6 +3,10 @@ import java.io.FileNotFoundException;
 import java.util.*;
 
 public class Simulator {
+  private static final int DEFAULT_CACHE_SIZE = 4096;
+  private static final int DEFAULT_ASSOCIATIVITY = 2;
+  private static final int DEFAULT_BLOCK_SIZE = 32;
+
   enum Protocol {
     DRAGON, MESI
   }
@@ -15,9 +19,9 @@ public class Simulator {
     validateArgLength(args.length);
     Protocol protocol = parseProtocol(args[0]);
     List<Scanner> readers = parseInputFile(args[1]);
-    int cacheSize = parseCacheSize(args[2]);
-    int associativity = parseAssociativity(args[3]);
-    int blockSize = parseBlockSize(args[4]);
+    int cacheSize = args.length < 3 ? DEFAULT_CACHE_SIZE : parseCacheSize(args[2]);
+    int associativity = args.length < 4 ? DEFAULT_ASSOCIATIVITY : parseAssociativity(args[3]);
+    int blockSize = args.length < 5 ? DEFAULT_BLOCK_SIZE : parseBlockSize(args[4]);
 
     List<Processor> processors = new ArrayList<>(readers.size());
     List<Cache> caches = new ArrayList<>(readers.size());
@@ -52,7 +56,7 @@ public class Simulator {
   }
 
   public static void validateArgLength(int length) {
-    if (length < 5) {
+    if (length < 2) {
       exitWithUsage("insufficient arguments");
     }
   }
