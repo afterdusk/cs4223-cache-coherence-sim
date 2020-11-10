@@ -15,8 +15,8 @@ public class Bus {
 
   // State variables
   private BusState busState;
-  private int busyCycles;
-  private int exitCycles;
+  private int primaryCycles;
+  private int secondaryCycles;
   private List<Cache> requesterQueue;
   private Cache requester;
   private Set<Cache> hogged = Set.of();
@@ -30,8 +30,8 @@ public class Bus {
   public Bus() {
     caches = new ArrayList<>();
     busState = BusState.READY;
-    busyCycles = 0;
-    exitCycles = 0;
+    primaryCycles = 0;
+    secondaryCycles = 0;
     requesterQueue = new ArrayList<>();
   }
 
@@ -92,18 +92,18 @@ public class Bus {
   public void tock() {
     switch (busState) {
       case BUSY:
-        busyCycles = Integer.max(busyCycles - 1, -1);
-        exitCycles = Integer.max(exitCycles - 1, -1);
-        if (exitCycles == 0) {
+        primaryCycles = Integer.max(primaryCycles - 1, -1);
+        secondaryCycles = Integer.max(secondaryCycles - 1, -1);
+        if (primaryCycles == 0) {
           requester.exitBus(result);
           requester = null;
           result = null;
         }
-        if (busyCycles == 0) {
+        if (secondaryCycles == 0) {
           hogged.stream().forEach(c -> c.unhog());
           hogged = Set.of();
         }
-        if (busyCycles <= 0 && exitCycles <= 0) {
+        if (primaryCycles <= 0 && secondaryCycles <= 0) {
           busState = BusState.READY;
         }
         break;
@@ -138,14 +138,14 @@ public class Bus {
         foundResponder = true;
         hogged = Set.of(cache);
         cache.hog();
-        exitCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
-        busyCycles = response.get().getTransition() == Transition.FLUSH_OPT ? exitCycles : BLOCK_LATENCY_MEM;
+        primaryCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
+        secondaryCycles = response.get().getTransition() == Transition.FLUSH_OPT ? primaryCycles : BLOCK_LATENCY_MEM;
       }
     }
 
     // Fetch from memory if no cache responded
     if (!foundResponder) {
-      exitCycles = BLOCK_LATENCY_MEM;
+      primaryCycles = BLOCK_LATENCY_MEM;
     }
   }
 
@@ -161,12 +161,12 @@ public class Bus {
       cache.snoop(transaction);
     }
     result = transaction;
-    exitCycles = INVALIDATE_LATENCY_CACHE;
+    primaryCycles = INVALIDATE_LATENCY_CACHE;
   }
 
   private void flush(BusTransaction transaction) {
     result = transaction;
-    exitCycles = BLOCK_LATENCY_MEM;
+    primaryCycles = BLOCK_LATENCY_MEM;
   }
 
   private void busUpd(BusTransaction transaction) {
@@ -180,10 +180,10 @@ public class Bus {
     if (shared) {
       hogged = containsAddr;
       hogged.stream().forEach(c -> c.hog());
-      exitCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
-      busyCycles = exitCycles;
+      primaryCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
+      secondaryCycles = primaryCycles;
     } else {
-      exitCycles = INVALIDATE_LATENCY_CACHE;
+      primaryCycles = INVALIDATE_LATENCY_CACHE;
       result.setSize(0);
     }
   }
