@@ -88,7 +88,7 @@ public abstract class Cache {
 
   abstract Optional<BusTransaction> snoop(BusTransaction transaction);
 
-  abstract void updateCacheStatistics(Optional<State> state);
+  abstract void updateCacheStatistics(Optional<BlockState> state);
 
   protected CacheSet getSet(int address) {
     return sets.get(getSetIndex(address));

@@ -62,11 +62,11 @@ public class MesiCache extends Cache {
         }
         // Conflict miss
         int evictionTargetTag = set.getEvictionTargetTag();
-        State evictionTargetState = set.getState(evictionTargetTag);
+        BlockState evictionTargetState = set.getState(evictionTargetTag);
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == State.MESI_MODIFIED) {
+        if (evictionTargetState == BlockState.MESI_MODIFIED) {
           // Need to flush evictee
           pendingState = CacheState.READING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -80,7 +80,7 @@ public class MesiCache extends Cache {
       case WRITING_WAITBUS: {
         // Contains element, but need to invalidate
         int tag = getTag(pendingAddress);
-        if (set.contains(tag) && set.getState(tag) == State.MESI_SHARED) {
+        if (set.contains(tag) && set.getState(tag) == BlockState.MESI_SHARED) {
           pendingState = CacheState.WRITING;
           pendingTransaction = new BusTransaction(Transition.BUS_UPGR, pendingAddress, 0);
           break;
@@ -93,11 +93,11 @@ public class MesiCache extends Cache {
         }
         // Conflict miss
         int evictionTargetTag = set.getEvictionTargetTag();
-        State evictionTargetState = set.getState(evictionTargetTag);
+        BlockState evictionTargetState = set.getState(evictionTargetTag);
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == State.MESI_MODIFIED) {
+        if (evictionTargetState == BlockState.MESI_MODIFIED) {
           // Need to flush evictee
           pendingState = CacheState.WRITING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -125,7 +125,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.READING) {
           throw new RuntimeException("Did a BusRd when state is not READING");
         }
-        State newBlockState = result.getShared() ? State.MESI_SHARED : State.MESI_EXCLUSIVE;
+        BlockState newBlockState = result.getShared() ? BlockState.MESI_SHARED : BlockState.MESI_EXCLUSIVE;
         set.add(tag, newBlockState);
         cacheState = CacheState.READY;
         processor.unstall();
@@ -134,7 +134,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusRdX when state is not WRITING");
         }
-        set.add(tag, State.MESI_MODIFIED);
+        set.add(tag, BlockState.MESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -142,7 +142,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusUpgr when state is not WRITING");
         }
-        set.update(tag, State.MESI_MODIFIED);
+        set.update(tag, BlockState.MESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -183,7 +183,7 @@ public class MesiCache extends Cache {
   }
 
   @Override
-  public void updateCacheStatistics(Optional<State> state) {
+  public void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     switch (state.get()) {
       case MESI_MODIFIED:
@@ -206,7 +206,7 @@ public class MesiCache extends Cache {
   private void prRd(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    State state = State.MESI_INVALID;
+    BlockState state = BlockState.MESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
@@ -231,14 +231,14 @@ public class MesiCache extends Cache {
   private void prWr(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    State state = State.MESI_INVALID;
+    BlockState state = BlockState.MESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
     updateCacheStatistics(Optional.of(state));
     switch (state) {
       case MESI_EXCLUSIVE:
-        set.update(tag, State.MESI_MODIFIED);
+        set.update(tag, BlockState.MESI_MODIFIED);
       case MESI_MODIFIED:
         set.use(tag);
         cacheState = CacheState.READY;
@@ -264,11 +264,11 @@ public class MesiCache extends Cache {
     Optional<BusTransaction> response = Optional.empty();
     switch (set.getState(tag)) {
       case MESI_MODIFIED:
-        set.update(tag, State.MESI_SHARED);
+        set.update(tag, BlockState.MESI_SHARED);
         response = Optional.of(new BusTransaction(Transition.FLUSH, address, blockSize));
         break;
       case MESI_EXCLUSIVE:
-        set.update(tag, State.MESI_SHARED);
+        set.update(tag, BlockState.MESI_SHARED);
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
       case MESI_SHARED:

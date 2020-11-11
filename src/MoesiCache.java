@@ -62,11 +62,11 @@ public class MoesiCache extends Cache {
         }
         // Conflict miss
         int evictionTargetTag = set.getEvictionTargetTag();
-        State evictionTargetState = set.getState(evictionTargetTag);
+        BlockState evictionTargetState = set.getState(evictionTargetTag);
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == State.MOESI_MODIFIED || evictionTargetState == State.MOESI_OWNED) {
+        if (evictionTargetState == BlockState.MOESI_MODIFIED || evictionTargetState == BlockState.MOESI_OWNED) {
           // Need to flush evictee
           pendingState = CacheState.READING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -81,7 +81,7 @@ public class MoesiCache extends Cache {
         // Contains element, but need to invalidate
         int tag = getTag(pendingAddress);
         if (set.contains(tag)) {
-          if (set.getState(tag) == State.MOESI_SHARED || set.getState(tag) == State.MOESI_OWNED) {
+          if (set.getState(tag) == BlockState.MOESI_SHARED || set.getState(tag) == BlockState.MOESI_OWNED) {
             pendingState = CacheState.WRITING;
             pendingTransaction = new BusTransaction(Transition.BUS_UPGR, pendingAddress, 0);
             break;
@@ -95,11 +95,11 @@ public class MoesiCache extends Cache {
         }
         // Conflict miss
         int evictionTargetTag = set.getEvictionTargetTag();
-        State evictionTargetState = set.getState(evictionTargetTag);
+        BlockState evictionTargetState = set.getState(evictionTargetTag);
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == State.MOESI_MODIFIED || evictionTargetState == State.MOESI_OWNED) {
+        if (evictionTargetState == BlockState.MOESI_MODIFIED || evictionTargetState == BlockState.MOESI_OWNED) {
           // Need to flush evictee
           pendingState = CacheState.WRITING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -127,7 +127,7 @@ public class MoesiCache extends Cache {
         if (cacheState != CacheState.READING) {
           throw new RuntimeException("Did a BusRd when state is not READING");
         }
-        State newBlockState = result.getShared() ? State.MOESI_SHARED : State.MOESI_EXCLUSIVE;
+        BlockState newBlockState = result.getShared() ? BlockState.MOESI_SHARED : BlockState.MOESI_EXCLUSIVE;
         set.add(tag, newBlockState);
         cacheState = CacheState.READY;
         processor.unstall();
@@ -136,7 +136,7 @@ public class MoesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusRdX when state is not WRITING");
         }
-        set.add(tag, State.MOESI_MODIFIED);
+        set.add(tag, BlockState.MOESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -144,7 +144,7 @@ public class MoesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusUpgr when state is not WRITING");
         }
-        set.update(tag, State.MOESI_MODIFIED);
+        set.update(tag, BlockState.MOESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -185,7 +185,7 @@ public class MoesiCache extends Cache {
   }
 
   @Override
-  public void updateCacheStatistics(Optional<State> state) {
+  public void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     switch (state.get()) {
       case MOESI_MODIFIED:
@@ -209,7 +209,7 @@ public class MoesiCache extends Cache {
   private void prRd(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    State state = State.MOESI_INVALID;
+    BlockState state = BlockState.MOESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
@@ -235,14 +235,14 @@ public class MoesiCache extends Cache {
   private void prWr(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    State state = State.MOESI_INVALID;
+    BlockState state = BlockState.MOESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
     updateCacheStatistics(Optional.of(state));
     switch (state) {
       case MOESI_EXCLUSIVE:
-        set.update(tag, State.MOESI_MODIFIED);
+        set.update(tag, BlockState.MOESI_MODIFIED);
       case MOESI_MODIFIED:
         set.use(tag);
         cacheState = CacheState.READY;
@@ -269,12 +269,12 @@ public class MoesiCache extends Cache {
     Optional<BusTransaction> response = Optional.empty();
     switch (set.getState(tag)) {
       case MOESI_MODIFIED:
-        set.update(tag, State.MOESI_OWNED);
+        set.update(tag, BlockState.MOESI_OWNED);
       case MOESI_OWNED:
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
       case MOESI_EXCLUSIVE:
-        set.update(tag, State.MOESI_SHARED);
+        set.update(tag, BlockState.MOESI_SHARED);
       case MOESI_SHARED:
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
