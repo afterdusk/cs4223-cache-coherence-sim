@@ -18,10 +18,12 @@ public class MesiCache extends Cache {
         prWr(pendingAddress);
         break;
       case READY:
-      case READING:
+      case READING_WAITBUS:
       case READING_PENDING_FLUSH:
-      case WRITING:
+      case READING:
+      case WRITING_WAITBUS:
       case WRITING_PENDING_FLUSH:
+      case WRITING:
         break;
     }
   }
@@ -51,7 +53,7 @@ public class MesiCache extends Cache {
     CacheState pendingState;
     BusTransaction pendingTransaction;
     switch (cacheState) {
-      case PENDING_READ: {
+      case READING_WAITBUS: {
         // Capacity available
         if (!set.isFull()) {
           pendingState = CacheState.READING;
@@ -75,7 +77,7 @@ public class MesiCache extends Cache {
         }
         break;
       }
-      case PENDING_WRITE: {
+      case WRITING_WAITBUS: {
         // Contains element, but need to invalidate
         int tag = getTag(pendingAddress);
         if (set.contains(tag) && set.getState(tag) == State.MESI_SHARED) {
@@ -152,10 +154,12 @@ public class MesiCache extends Cache {
         break;
       case FLUSH:
         if (cacheState == CacheState.READING_PENDING_FLUSH) {
-          cacheState = CacheState.PENDING_READ;
+          bus.reserve(this);
+          cacheState = CacheState.READING_WAITBUS;
         }
         if (cacheState == CacheState.WRITING_PENDING_FLUSH) {
-          cacheState = CacheState.PENDING_WRITE;
+          bus.reserve(this);
+          cacheState = CacheState.WRITING_WAITBUS;
         }
         break;
       default:
@@ -223,6 +227,7 @@ public class MesiCache extends Cache {
         break;
       case MESI_INVALID:
         bus.reserve(this);
+        cacheState = CacheState.READING_WAITBUS;
         break;
       default:
         throw new RuntimeException("Invalid state detected in MESI cache: " + set.getState(tag));
@@ -248,6 +253,7 @@ public class MesiCache extends Cache {
       case MESI_SHARED:
       case MESI_INVALID:
         bus.reserve(this);
+        cacheState = CacheState.WRITING_WAITBUS;
         break;
       default:
         throw new RuntimeException("Invalid state detected in MESI cache: " + set.getState(tag));

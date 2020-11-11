@@ -2,7 +2,13 @@ import java.util.*;
 
 public abstract class Cache {
   enum CacheState {
-    READY, PENDING_READ, PENDING_WRITE, READING_PENDING_FLUSH, READING, WRITING_PENDING_FLUSH, WRITING
+    READY,
+
+    // Reading
+    PENDING_READ, READING_WAITBUS, READING_PENDING_FLUSH, READING,
+
+    // Writing
+    PENDING_WRITE, WRITING_WAITBUS, WRITING_PENDING_FLUSH, WRITING,
   }
 
   protected static final int WORD_SIZE = 4;
