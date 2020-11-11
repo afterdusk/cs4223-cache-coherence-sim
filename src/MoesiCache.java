@@ -1,7 +1,7 @@
 import java.util.*;
 
-public class MesiCache extends Cache {
-  public MesiCache(Bus bus, int cacheSize, int associativity, int blockSize) {
+public class MoesiCache extends Cache {
+  public MoesiCache(Bus bus, int cacheSize, int associativity, int blockSize) {
     super(bus, cacheSize, associativity, blockSize);
   }
 
@@ -54,7 +54,7 @@ public class MesiCache extends Cache {
     BusTransaction pendingTransaction;
     switch (cacheState) {
       case READING_WAITBUS: {
-        // Capacity available
+        // Cold miss
         if (!set.isFull()) {
           pendingState = CacheState.READING;
           pendingTransaction = new BusTransaction(Transition.BUS_RD, pendingAddress, blockSize);
@@ -66,7 +66,7 @@ public class MesiCache extends Cache {
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == BlockState.MESI_MODIFIED) {
+        if (evictionTargetState == BlockState.MOESI_MODIFIED || evictionTargetState == BlockState.MOESI_OWNED) {
           // Need to flush evictee
           pendingState = CacheState.READING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -80,10 +80,12 @@ public class MesiCache extends Cache {
       case WRITING_WAITBUS: {
         // Contains element, but need to invalidate
         int tag = getTag(pendingAddress);
-        if (set.contains(tag) && set.getState(tag) == BlockState.MESI_SHARED) {
-          pendingState = CacheState.WRITING;
-          pendingTransaction = new BusTransaction(Transition.BUS_UPGR, pendingAddress, 0);
-          break;
+        if (set.contains(tag)) {
+          if (set.getState(tag) == BlockState.MOESI_SHARED || set.getState(tag) == BlockState.MOESI_OWNED) {
+            pendingState = CacheState.WRITING;
+            pendingTransaction = new BusTransaction(Transition.BUS_UPGR, pendingAddress, 0);
+            break;
+          }
         }
         // Cold miss
         if (!set.isFull()) {
@@ -97,7 +99,7 @@ public class MesiCache extends Cache {
         int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
         set.evict();
 
-        if (evictionTargetState == BlockState.MESI_MODIFIED) {
+        if (evictionTargetState == BlockState.MOESI_MODIFIED || evictionTargetState == BlockState.MOESI_OWNED) {
           // Need to flush evictee
           pendingState = CacheState.WRITING_PENDING_FLUSH;
           pendingTransaction = new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
@@ -125,7 +127,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.READING) {
           throw new RuntimeException("Did a BusRd when state is not READING");
         }
-        BlockState newBlockState = result.getShared() ? BlockState.MESI_SHARED : BlockState.MESI_EXCLUSIVE;
+        BlockState newBlockState = result.getShared() ? BlockState.MOESI_SHARED : BlockState.MOESI_EXCLUSIVE;
         set.add(tag, newBlockState);
         cacheState = CacheState.READY;
         processor.unstall();
@@ -134,7 +136,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusRdX when state is not WRITING");
         }
-        set.add(tag, BlockState.MESI_MODIFIED);
+        set.add(tag, BlockState.MOESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -142,7 +144,7 @@ public class MesiCache extends Cache {
         if (cacheState != CacheState.WRITING) {
           throw new RuntimeException("Did a BusUpgr when state is not WRITING");
         }
-        set.update(tag, BlockState.MESI_MODIFIED);
+        set.update(tag, BlockState.MOESI_MODIFIED);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
@@ -186,16 +188,17 @@ public class MesiCache extends Cache {
   public void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     switch (state.get()) {
-      case MESI_MODIFIED:
-      case MESI_EXCLUSIVE:
+      case MOESI_MODIFIED:
+      case MOESI_EXCLUSIVE:
         cacheNumHits++;
         cacheNumPrivateAccesses++;
         break;
-      case MESI_SHARED:
+      case MOESI_OWNED:
+      case MOESI_SHARED:
         cacheNumHits++;
         cacheNumSharedAccesses++;
         break;
-      case MESI_INVALID:
+      case MOESI_INVALID:
         cacheNumMisses++;
         break;
       default:
@@ -206,51 +209,53 @@ public class MesiCache extends Cache {
   private void prRd(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    BlockState state = BlockState.MESI_INVALID;
+    BlockState state = BlockState.MOESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
     updateCacheStatistics(Optional.of(state));
     switch (state) {
-      case MESI_MODIFIED:
-      case MESI_EXCLUSIVE:
-      case MESI_SHARED:
+      case MOESI_MODIFIED:
+      case MOESI_OWNED:
+      case MOESI_EXCLUSIVE:
+      case MOESI_SHARED:
         set.use(tag);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
-      case MESI_INVALID:
+      case MOESI_INVALID:
         bus.reserve(this);
         cacheState = CacheState.READING_WAITBUS;
         break;
       default:
-        throw new RuntimeException("Invalid state detected in MESI cache: " + set.getState(tag));
+        throw new RuntimeException("Invalid state detected in MOESI cache: " + set.getState(tag));
     }
   }
 
   private void prWr(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
-    BlockState state = BlockState.MESI_INVALID;
+    BlockState state = BlockState.MOESI_INVALID;
     if (set.contains(tag)) {
       state = set.getState(tag);
     }
     updateCacheStatistics(Optional.of(state));
     switch (state) {
-      case MESI_EXCLUSIVE:
-        set.update(tag, BlockState.MESI_MODIFIED);
-      case MESI_MODIFIED:
+      case MOESI_EXCLUSIVE:
+        set.update(tag, BlockState.MOESI_MODIFIED);
+      case MOESI_MODIFIED:
         set.use(tag);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
-      case MESI_SHARED:
-      case MESI_INVALID:
+      case MOESI_OWNED:
+      case MOESI_SHARED:
+      case MOESI_INVALID:
         bus.reserve(this);
         cacheState = CacheState.WRITING_WAITBUS;
         break;
       default:
-        throw new RuntimeException("Invalid state detected in MESI cache: " + set.getState(tag));
+        throw new RuntimeException("Invalid state detected in MOESI cache: " + set.getState(tag));
     }
   }
 
@@ -263,20 +268,19 @@ public class MesiCache extends Cache {
 
     Optional<BusTransaction> response = Optional.empty();
     switch (set.getState(tag)) {
-      case MESI_MODIFIED:
-        set.update(tag, BlockState.MESI_SHARED);
-        response = Optional.of(new BusTransaction(Transition.FLUSH, address, blockSize));
-        break;
-      case MESI_EXCLUSIVE:
-        set.update(tag, BlockState.MESI_SHARED);
+      case MOESI_MODIFIED:
+        set.update(tag, BlockState.MOESI_OWNED);
+      case MOESI_OWNED:
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
-      case MESI_SHARED:
+      case MOESI_EXCLUSIVE:
+        set.update(tag, BlockState.MOESI_SHARED);
+      case MOESI_SHARED:
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
-      case MESI_INVALID:
+      case MOESI_INVALID:
       default:
-        throw new RuntimeException("Invalid state for busRd detected in MESI cache: " + set.getState(tag));
+        throw new RuntimeException("Invalid state for busRd detected in MOESI cache: " + set.getState(tag));
     }
     return response;
   }
@@ -290,21 +294,19 @@ public class MesiCache extends Cache {
 
     Optional<BusTransaction> response = Optional.empty();
     switch (set.getState(tag)) {
-      case MESI_MODIFIED:
+      case MOESI_MODIFIED:
+      case MOESI_OWNED:
         set.invalidate(tag);
         response = Optional.of(new BusTransaction(Transition.FLUSH, address, blockSize));
         break;
-      case MESI_EXCLUSIVE:
+      case MOESI_EXCLUSIVE:
+      case MOESI_SHARED:
         set.invalidate(tag);
         response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
         break;
-      case MESI_SHARED:
-        set.invalidate(tag);
-        response = Optional.of(new BusTransaction(Transition.FLUSH_OPT, address, blockSize));
-        break;
-      case MESI_INVALID:
+      case MOESI_INVALID:
       default:
-        throw new RuntimeException("Invalid state for busRdX detected in MESI cache: " + set.getState(tag));
+        throw new RuntimeException("Invalid state for busRdX detected in MOESI cache: " + set.getState(tag));
     }
     return response;
   }
@@ -317,14 +319,15 @@ public class MesiCache extends Cache {
     }
 
     switch (set.getState(tag)) {
-      case MESI_SHARED:
+      case MOESI_OWNED:
+      case MOESI_SHARED:
         set.invalidate(tag);
         break;
-      case MESI_MODIFIED:
-      case MESI_EXCLUSIVE:
-      case MESI_INVALID:
+      case MOESI_MODIFIED:
+      case MOESI_EXCLUSIVE:
+      case MOESI_INVALID:
       default:
-        throw new RuntimeException("Invalid state for busUpgr detected in MESI cache: " + set.getState(tag));
+        throw new RuntimeException("Invalid state for busUpgr detected in MOESI cache: " + set.getState(tag));
     }
   }
 }

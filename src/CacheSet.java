@@ -6,25 +6,25 @@ import java.util.*;
  */
 public class CacheSet {
   private int numBlocks;
-  private Map<Integer, State> blocks;
+  private Map<Integer, BlockState> blocks;
 
   CacheSet(int associativity) {
     this.numBlocks = associativity;
-    this.blocks = new LinkedHashMap<Integer, State>(this.numBlocks);
+    this.blocks = new LinkedHashMap<Integer, BlockState>(this.numBlocks);
   }
 
   public boolean contains(int tag) {
     return blocks.containsKey(tag);
   }
 
-  public State getState(int tag) {
+  public BlockState getState(int tag) {
     if (!contains(tag)) {
       throw new RuntimeException("CacheSet does not contain tag, unable to get state");
     }
     return blocks.get(tag);
   }
 
-  public void add(int tag, State state) {
+  public void add(int tag, BlockState state) {
     if (contains(tag)) {
       throw new RuntimeException("CacheSet already contains tag, unable to add");
     }
@@ -49,11 +49,11 @@ public class CacheSet {
     if (!contains(tag)) {
       throw new RuntimeException("CacheSet does not contain tag, unable to use");
     }
-    State state = blocks.remove(tag);
+    BlockState state = blocks.remove(tag);
     blocks.put(tag, state);
   }
 
-  public void update(int tag, State state) {
+  public void update(int tag, BlockState state) {
     if (!contains(tag)) {
       throw new RuntimeException("CacheSet does not contain tag, unable to update");
     }

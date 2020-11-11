@@ -52,13 +52,13 @@ public class DragonCache extends Cache {
       throw new RuntimeException("Called prWr when not in PENDING_WRITE cachestate");
     CacheSet set = getSet(pendingAddress);
     int tag = getTag(pendingAddress);
-    Optional<State> stateForStat = Optional.empty();
+    Optional<BlockState> stateForStat = Optional.empty();
     if (set.contains(tag)) {
-      State blockState = set.getState(tag);
+      BlockState blockState = set.getState(tag);
       stateForStat = Optional.of(blockState);
-      if (blockState == State.DRAGON_EXCLUSIVE || blockState == State.DRAGON_MODIFIED) {
+      if (blockState == BlockState.DRAGON_EXCLUSIVE || blockState == BlockState.DRAGON_MODIFIED) {
         updateCacheStatistics(stateForStat);
-        set.update(tag, State.DRAGON_MODIFIED);
+        set.update(tag, BlockState.DRAGON_MODIFIED);
         set.use(tag);
         processor.unstall();
         cacheState = CacheState.READY;
@@ -83,10 +83,11 @@ public class DragonCache extends Cache {
 
       // Conflict miss
       int evictionTargetTag = set.getEvictionTargetTag();
-      State evictionTargetState = set.getState(evictionTargetTag);
+      BlockState evictionTargetState = set.getState(evictionTargetTag);
       int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
       // Need to flush evictee
-      if (evictionTargetState == State.DRAGON_MODIFIED || evictionTargetState == State.DRAGON_SHARED_MODIFIED) {
+      if (evictionTargetState == BlockState.DRAGON_MODIFIED
+          || evictionTargetState == BlockState.DRAGON_SHARED_MODIFIED) {
         cacheState = CacheState.READING_PENDING_FLUSH;
         return new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
       }
@@ -106,10 +107,11 @@ public class DragonCache extends Cache {
 
       // Conflict miss
       int evictionTargetTag = set.getEvictionTargetTag();
-      State evictionTargetState = set.getState(evictionTargetTag);
+      BlockState evictionTargetState = set.getState(evictionTargetTag);
       int evictionTargetAddress = getAddress(evictionTargetTag, getSetIndex(pendingAddress));
       // Need to flush evictee
-      if (evictionTargetState == State.DRAGON_MODIFIED || evictionTargetState == State.DRAGON_SHARED_MODIFIED) {
+      if (evictionTargetState == BlockState.DRAGON_MODIFIED
+          || evictionTargetState == BlockState.DRAGON_SHARED_MODIFIED) {
         cacheState = CacheState.WRITING_PENDING_FLUSH;
         return new BusTransaction(Transition.FLUSH, evictionTargetAddress, blockSize);
       }
@@ -129,20 +131,20 @@ public class DragonCache extends Cache {
     switch (result.getTransition()) {
       // Read/Write miss
       case BUS_RD:
-        State newBlockState;
+        BlockState newBlockState;
         switch (cacheState) {
           case READING:
-            newBlockState = shared ? State.DRAGON_SHARED_CLEAN : State.DRAGON_EXCLUSIVE;
+            newBlockState = shared ? BlockState.DRAGON_SHARED_CLEAN : BlockState.DRAGON_EXCLUSIVE;
             set.add(tag, newBlockState);
             cacheState = CacheState.READY;
             processor.unstall();
             break;
           case WRITING:
-            newBlockState = shared ? State.DRAGON_SHARED_MODIFIED : State.DRAGON_MODIFIED;
+            newBlockState = shared ? BlockState.DRAGON_SHARED_MODIFIED : BlockState.DRAGON_MODIFIED;
             set.add(tag, newBlockState);
 
             // Do the BusUpd next cycle
-            if (newBlockState == State.DRAGON_SHARED_MODIFIED) {
+            if (newBlockState == BlockState.DRAGON_SHARED_MODIFIED) {
               bus.reserveToFront(this);
               cacheState = CacheState.WRITING_WAITBUS;
             } else {
@@ -156,7 +158,7 @@ public class DragonCache extends Cache {
         break;
       case BUS_UPD:
         // Must be write hit, already in cache
-        set.update(tag, shared ? State.DRAGON_SHARED_MODIFIED : State.DRAGON_MODIFIED);
+        set.update(tag, shared ? BlockState.DRAGON_SHARED_MODIFIED : BlockState.DRAGON_MODIFIED);
         set.use(tag);
         cacheState = CacheState.READY;
         processor.unstall();
@@ -189,17 +191,17 @@ public class DragonCache extends Cache {
     if (!set.contains(tag))
       return Optional.empty();
 
-    State blockState = set.getState(tag);
+    BlockState blockState = set.getState(tag);
     switch (transaction.getTransition()) {
       case BUS_RD:
         switch (blockState) {
           case DRAGON_EXCLUSIVE:
-            set.update(tag, State.DRAGON_SHARED_CLEAN);
+            set.update(tag, BlockState.DRAGON_SHARED_CLEAN);
             // FALLTHROUGH
           case DRAGON_SHARED_CLEAN:
             return Optional.empty();
           case DRAGON_MODIFIED:
-            set.update(tag, State.DRAGON_SHARED_MODIFIED);
+            set.update(tag, BlockState.DRAGON_SHARED_MODIFIED);
             // FALLTHROUGH
           case DRAGON_SHARED_MODIFIED:
             return Optional.of(new BusTransaction(Transition.FLUSH, address, blockSize));
@@ -207,9 +209,9 @@ public class DragonCache extends Cache {
             break;
         }
       case BUS_UPD:
-        if (blockState != State.DRAGON_SHARED_CLEAN && blockState != State.DRAGON_SHARED_MODIFIED)
+        if (blockState != BlockState.DRAGON_SHARED_CLEAN && blockState != BlockState.DRAGON_SHARED_MODIFIED)
           throw new RuntimeException("Snooped BusUpd for block that is not Shared");
-        set.update(tag, State.DRAGON_SHARED_CLEAN);
+        set.update(tag, BlockState.DRAGON_SHARED_CLEAN);
         return Optional.empty();
       case FLUSH:
         return Optional.empty();
@@ -220,7 +222,7 @@ public class DragonCache extends Cache {
   }
 
   @Override
-  void updateCacheStatistics(Optional<State> state) {
+  void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     if (state.isEmpty()) {
       cacheNumMisses++;

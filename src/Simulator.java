@@ -8,7 +8,7 @@ public class Simulator {
   private static final int DEFAULT_BLOCK_SIZE = 32;
 
   enum Protocol {
-    DRAGON, MESI
+    MESI, MOESI, DRAGON
   }
 
   // Statistics
@@ -31,6 +31,9 @@ public class Simulator {
       switch (protocol) {
         case MESI:
           cache = new MesiCache(bus, cacheSize, associativity, blockSize);
+          break;
+        case MOESI:
+          cache = new MoesiCache(bus, cacheSize, associativity, blockSize);
           break;
         case DRAGON:
           cache = new DragonCache(bus, cacheSize, associativity, blockSize);
@@ -66,6 +69,9 @@ public class Simulator {
     switch (protocolString.toLowerCase()) {
       case "mesi":
         protocol = Protocol.MESI;
+        break;
+      case "moesi":
+        protocol = Protocol.MOESI;
         break;
       case "dragon":
         protocol = Protocol.DRAGON;
@@ -146,7 +152,7 @@ public class Simulator {
 
   public static void printUsage() {
     String usage = "usage: Simulator protocol input_file cache_size associativity block_size";
-    String protocol = "\tprotocol: (MESI | Dragon)";
+    String protocol = "\tprotocol: (MESI | MOESI | Dragon)";
     String inputFile = "\tinput_file: benchmark located in data/ directory (e.g. blackscholes_four)";
     String cacheSize = "\tcache_size: cache size in bytes";
     String associativity = "\tassociativity: associativity of the cache";

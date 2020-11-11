@@ -1,8 +1,13 @@
-public enum State {
+public enum BlockState {
   /**
    * MESI
    */
   MESI_MODIFIED, MESI_EXCLUSIVE, MESI_SHARED, MESI_INVALID,
+
+  /**
+   * MOESI
+   */
+  MOESI_MODIFIED, MOESI_EXCLUSIVE, MOESI_OWNED, MOESI_SHARED, MOESI_INVALID,
 
   /**
    * Dragon
