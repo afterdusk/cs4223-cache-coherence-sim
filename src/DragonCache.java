@@ -187,10 +187,10 @@ public class DragonCache extends Cache {
     if (!set.contains(tag))
       return Optional.empty();
 
-    State cacheState = set.getState(tag);
+    State blockState = set.getState(tag);
     switch (transaction.getTransition()) {
       case BUS_RD:
-        switch (cacheState) {
+        switch (blockState) {
           case DRAGON_EXCLUSIVE:
             set.update(tag, State.DRAGON_SHARED_CLEAN);
             // FALLTHROUGH
@@ -205,7 +205,7 @@ public class DragonCache extends Cache {
             break;
         }
       case BUS_UPD:
-        if (cacheState != State.DRAGON_SHARED_CLEAN && cacheState != State.DRAGON_SHARED_MODIFIED)
+        if (blockState != State.DRAGON_SHARED_CLEAN && blockState != State.DRAGON_SHARED_MODIFIED)
           throw new RuntimeException("Snooped BusUpd for block that is not Shared");
         set.update(tag, State.DRAGON_SHARED_CLEAN);
         return Optional.empty();
