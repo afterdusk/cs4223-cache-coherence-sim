@@ -165,6 +165,13 @@ public class Simulator {
     System.out.println("Overall Execution Cycle: " + simulatorCycle);
     System.out.println("------------------- Bus --------------------");
     printStatisticsMap(bus.getBusStatistics());
+    System.out.println("------------------- Avg --------------------");
+    float avgMissRate = caches.stream().map(c -> c.getCacheStatistics()).map(stats -> stats.get("Cache Miss Rate (%)"))
+        .map(num -> num.floatValue()).reduce(Float::sum).get() / 4;
+    float avgSharedAccess = caches.stream().map(c -> c.getCacheStatistics())
+        .map(stats -> stats.get("Shared Data Accesses (%)")).map(num -> num.floatValue()).reduce(Float::sum).get() / 4;
+    System.out.printf("%-28s %15.2f\n", "Average Cache Miss Rate (%):", avgMissRate);
+    System.out.printf("%-28s %10.2f\n", "Average Shared Data Accesses (%):", avgSharedAccess);
     for (int i = 0; i < processors.size(); i++) {
       System.out.printf("------------------ Core %d ------------------\n", i + 1);
       printStatisticsMap(processors.get(i).getProcessorStatistics());
