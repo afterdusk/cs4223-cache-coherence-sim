@@ -52,10 +52,12 @@ public class DragonCache extends Cache {
       throw new RuntimeException("Called prWr when not in PENDING_WRITE cachestate");
     CacheSet set = getSet(pendingAddress);
     int tag = getTag(pendingAddress);
+    Optional<State> stateForStat = Optional.empty();
     if (set.contains(tag)) {
       State blockState = set.getState(tag);
-      updateCacheStatistics(Optional.of(blockState));
+      stateForStat = Optional.of(blockState);
       if (blockState == State.DRAGON_EXCLUSIVE || blockState == State.DRAGON_MODIFIED) {
+        updateCacheStatistics(stateForStat);
         set.update(tag, State.DRAGON_MODIFIED);
         set.use(tag);
         processor.unstall();
@@ -63,7 +65,7 @@ public class DragonCache extends Cache {
         return;
       }
     }
-    updateCacheStatistics(Optional.empty());
+    updateCacheStatistics(stateForStat);
     bus.reserve(this);
     cacheState = CacheState.WRITING_WAITBUS;
   }
