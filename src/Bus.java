@@ -139,7 +139,11 @@ public class Bus {
         hogged = Set.of(cache);
         cache.hog();
         primaryCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
-        secondaryCycles = response.get().getTransition() == Transition.FLUSH_OPT ? primaryCycles : BLOCK_LATENCY_MEM;
+        if (response.get().getTransition() == Transition.FLUSH_OPT) {
+          secondaryCycles = primaryCycles;
+        } else {
+          secondaryCycles = Integer.max(BLOCK_LATENCY_MEM, primaryCycles);
+        }
       }
     }
 
