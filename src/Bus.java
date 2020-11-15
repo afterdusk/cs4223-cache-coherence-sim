@@ -183,7 +183,10 @@ public class Bus {
 
     if (shared) {
       hogged = containsAddr;
-      hogged.stream().forEach(c -> c.hog());
+      hogged.stream().forEach(c -> {
+        c.snoop(transaction);
+        c.hog();
+      });
       primaryCycles = WORD_LATENCY_CACHE * (transaction.getSize() / WORD_SIZE);
       secondaryCycles = primaryCycles;
     } else {
