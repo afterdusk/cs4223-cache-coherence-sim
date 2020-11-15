@@ -36,6 +36,7 @@ public class Processor {
       case READY:
         if (!sc.hasNext()) {
           state = ProcessorState.DONE;
+          sc.close();
           return;
         }
 

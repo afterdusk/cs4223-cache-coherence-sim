@@ -76,19 +76,48 @@ public abstract class Cache {
     return statistics;
   }
 
-  abstract void tick();
+  public void tick() {
+    if (hoggedByBus)
+      return;
+    switch (cacheState) {
+      case PENDING_READ:
+        prRd(pendingAddress);
+        break;
+      case PENDING_WRITE:
+        prWr(pendingAddress);
+        break;
+      default:
+        break;
+    }
+  }
 
-  abstract void read(int address);
+  public void read(int address) {
+    if (cacheState != CacheState.READY) {
+      throw new RuntimeException("Read operation called when cache is not in READY state");
+    }
+    pendingAddress = address;
+    cacheState = CacheState.PENDING_READ;
+  }
 
-  abstract void write(int address);
+  public void write(int address) {
+    if (cacheState != CacheState.READY) {
+      throw new RuntimeException("Write operation called when cache is not in READY state");
+    }
+    pendingAddress = address;
+    cacheState = CacheState.PENDING_WRITE;
+  }
 
-  abstract BusTransaction accessBus();
+  public abstract BusTransaction accessBus();
 
-  abstract void exitBus(BusTransaction result);
+  public abstract void exitBus(BusTransaction result);
 
-  abstract Optional<BusTransaction> snoop(BusTransaction transaction);
+  public abstract Optional<BusTransaction> snoop(BusTransaction transaction);
 
-  abstract void updateCacheStatistics(Optional<BlockState> state);
+  protected abstract void prRd(int address);
+
+  protected abstract void prWr(int address);
+
+  protected abstract void updateCacheStatistics(Optional<BlockState> state);
 
   protected CacheSet getSet(int address) {
     return sets.get(getSetIndex(address));

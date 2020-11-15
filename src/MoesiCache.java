@@ -6,47 +6,6 @@ public class MoesiCache extends Cache {
   }
 
   @Override
-  void tick() {
-    if (hoggedByBus) {
-      return;
-    }
-    switch (cacheState) {
-      case PENDING_READ:
-        prRd(pendingAddress);
-        break;
-      case PENDING_WRITE:
-        prWr(pendingAddress);
-        break;
-      case READY:
-      case READING_WAITBUS:
-      case READING_PENDING_FLUSH:
-      case READING:
-      case WRITING_WAITBUS:
-      case WRITING_PENDING_FLUSH:
-      case WRITING:
-        break;
-    }
-  }
-
-  @Override
-  public void read(int address) {
-    if (cacheState != CacheState.READY) {
-      throw new RuntimeException("Read operation called when cache is not in READY state");
-    }
-    pendingAddress = address;
-    cacheState = CacheState.PENDING_READ;
-  }
-
-  @Override
-  public void write(int address) {
-    if (cacheState != CacheState.READY) {
-      throw new RuntimeException("Write operation called when cache is not in READY state");
-    }
-    pendingAddress = address;
-    cacheState = CacheState.PENDING_WRITE;
-  }
-
-  @Override
   public BusTransaction accessBus() {
     CacheSet set = getSet(pendingAddress);
 
@@ -185,7 +144,7 @@ public class MoesiCache extends Cache {
   }
 
   @Override
-  public void updateCacheStatistics(Optional<BlockState> state) {
+  protected void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     switch (state.get()) {
       case MOESI_MODIFIED:
@@ -206,7 +165,8 @@ public class MoesiCache extends Cache {
     }
   }
 
-  private void prRd(int address) {
+  @Override
+  protected void prRd(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
     BlockState state = BlockState.MOESI_INVALID;
@@ -232,7 +192,8 @@ public class MoesiCache extends Cache {
     }
   }
 
-  private void prWr(int address) {
+  @Override
+  protected void prWr(int address) {
     CacheSet set = sets.get(getSetIndex(address));
     int tag = getTag(address);
     BlockState state = BlockState.MOESI_INVALID;
