@@ -1,7 +1,7 @@
 # Cache Coherence Simulator
 
 ## Prerequisites
-1. Java JDK >=8
+1. Java JDK >=11
 
 ## Build
 ```console
