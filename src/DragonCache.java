@@ -5,36 +5,12 @@ public class DragonCache extends Cache {
     super(bus, cacheSize, associativity, blockSize);
   }
 
-  public void tick() {
-    if (hoggedByBus)
-      return;
-    switch (cacheState) {
-      case PENDING_READ:
-        prRd();
-        break;
-      case PENDING_WRITE:
-        prWr();
-        break;
-      default:
-        break;
-    }
-  }
-
-  public void read(int address) {
-    cacheState = CacheState.PENDING_READ;
-    pendingAddress = address;
-  }
-
-  public void write(int address) {
-    cacheState = CacheState.PENDING_WRITE;
-    pendingAddress = address;
-  }
-
-  private void prRd() {
+  @Override
+  protected void prRd(int address) {
     if (cacheState != CacheState.PENDING_READ)
       throw new RuntimeException("Called prRd when not in PENDING_READ cachestate");
-    CacheSet set = getSet(pendingAddress);
-    int tag = getTag(pendingAddress);
+    CacheSet set = getSet(address);
+    int tag = getTag(address);
     if (set.contains(tag)) {
       updateCacheStatistics(Optional.of(set.getState(tag)));
       set.use(tag);
@@ -47,11 +23,12 @@ public class DragonCache extends Cache {
     cacheState = CacheState.READING_WAITBUS;
   }
 
-  private void prWr() {
+  @Override
+  protected void prWr(int address) {
     if (cacheState != CacheState.PENDING_WRITE)
       throw new RuntimeException("Called prWr when not in PENDING_WRITE cachestate");
-    CacheSet set = getSet(pendingAddress);
-    int tag = getTag(pendingAddress);
+    CacheSet set = getSet(address);
+    int tag = getTag(address);
     Optional<BlockState> stateForStat = Optional.empty();
     if (set.contains(tag)) {
       BlockState blockState = set.getState(tag);
@@ -70,6 +47,7 @@ public class DragonCache extends Cache {
     cacheState = CacheState.WRITING_WAITBUS;
   }
 
+  @Override
   public BusTransaction accessBus() {
     CacheSet set = getSet(pendingAddress);
     int tag = getTag(pendingAddress);
@@ -123,6 +101,7 @@ public class DragonCache extends Cache {
         "Accessing bus when not in a WAITBUS state. State is: " + cacheState + " in processor: " + processor);
   }
 
+  @Override
   public void exitBus(BusTransaction result) {
     int address = result.getAddress();
     int tag = getTag(address);
@@ -180,9 +159,9 @@ public class DragonCache extends Cache {
       default:
         throw new RuntimeException("Exiting bus with invalid Dragon transaction type: " + result.getTransition());
     }
-
   }
 
+  @Override
   public Optional<BusTransaction> snoop(BusTransaction transaction) {
     int address = transaction.getAddress();
     int tag = getTag(address);
@@ -222,7 +201,7 @@ public class DragonCache extends Cache {
   }
 
   @Override
-  void updateCacheStatistics(Optional<BlockState> state) {
+  protected void updateCacheStatistics(Optional<BlockState> state) {
     cacheNumTotalAccesses++;
     if (state.isEmpty()) {
       cacheNumMisses++;
