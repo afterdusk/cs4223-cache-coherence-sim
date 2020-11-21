@@ -1,0 +1,74 @@
+========== Cache Coherence Simulator ==========
+...Reading benchmark files from: /home/evan/Projects/cs4223-assignment-2/./data/fluidanimate_four
+...fluidanimate_0.data found
+...fluidanimate_1.data found
+...fluidanimate_2.data found
+...fluidanimate_3.data found
+...Simulation starting
+...Simulation completed!
+
+============ Simulation Statistics ============
+Overall Execution Cycle: 147065217
+------------------- Bus --------------------
+Bus Traffic (bytes):                48780704
+Invalidations:                        341249
+Updates:                                   0
+------------------- Avg --------------------
+Average Cache Miss Rate (%):           10.57
+Average Shared Data Accesses (%):      15.98
+------------------ Core 1 ------------------
+Cycle:                             145522601
+Compute Cycles:                     11337782
+Idle Cycles:                       131608316
+Loads:                               1832392
+Stores:                               744111
+Cache Accesses:                      2576503
+Cache Hits:                          2284676
+Cache Misses:                         291827
+Cache Miss Rate (%):                   11.33
+Private Data Accesses:               1923631
+Shared Data Accesses:                 361045
+Private Data Accesses (%):             84.20
+Shared Data Accesses (%):              15.80
+------------------ Core 2 ------------------
+Cycle:                             132315501
+Compute Cycles:                     11290799
+Idle Cycles:                       118616858
+Loads:                               1821846
+Stores:                               585998
+Cache Accesses:                      2407844
+Cache Hits:                          2171195
+Cache Misses:                         236649
+Cache Miss Rate (%):                    9.83
+Private Data Accesses:               1804206
+Shared Data Accesses:                 366989
+Private Data Accesses (%):             83.10
+Shared Data Accesses (%):              16.90
+------------------ Core 3 ------------------
+Cycle:                             147065216
+Compute Cycles:                     11337671
+Idle Cycles:                       133123356
+Loads:                               1838008
+Stores:                               766181
+Cache Accesses:                      2604189
+Cache Hits:                          2306186
+Cache Misses:                         298003
+Cache Miss Rate (%):                   11.44
+Private Data Accesses:               1977054
+Shared Data Accesses:                 329132
+Private Data Accesses (%):             85.73
+Shared Data Accesses (%):              14.27
+------------------ Core 4 ------------------
+Cycle:                             131105971
+Compute Cycles:                     11301515
+Idle Cycles:                       117392991
+Loads:                               1832174
+Stores:                               579291
+Cache Accesses:                      2411465
+Cache Hits:                          2178126
+Cache Misses:                         233339
+Cache Miss Rate (%):                    9.68
+Private Data Accesses:               1808927
+Shared Data Accesses:                 369199
+Private Data Accesses (%):             83.05
+Shared Data Accesses (%):              16.95
