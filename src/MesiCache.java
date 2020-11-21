@@ -102,6 +102,7 @@ public class MesiCache extends Cache {
           throw new RuntimeException("Did a BusUpgr when state is not WRITING");
         }
         set.update(tag, BlockState.MESI_MODIFIED);
+        set.use(tag);
         cacheState = CacheState.READY;
         processor.unstall();
         break;
